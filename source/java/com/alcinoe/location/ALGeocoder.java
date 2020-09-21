@@ -5,6 +5,7 @@ import android.location.Address;
 import org.json.JSONObject;
 import org.json.JSONArray;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.net.HttpURLConnection;
 import java.io.InputStream;
 import java.io.ByteArrayOutputStream;
@@ -16,15 +17,18 @@ import android.util.Log;
 public class ALGeocoder {
 
   //when you update this function update also it's equivalent delphi implementation (look for keyword https://maps.googleapis.com/maps/api/geocode/json)
-  public static Address getFromLocation (double latitude, double longitude, String language, String apiKey, StringBuilder apiStatus) {
-    
+  public static Address getFromLocation (String apiServer, /* https://maps.googleapis.com/maps/api/geocode/json */
+                                         double latitude, 
+                                         double longitude, 
+                                         String language, 
+                                         StringBuilder apiStatus) {
+
     Address address = null;
     try {
 
-      URL url = new URL("https://maps.googleapis.com/maps/api/geocode/json?"+
+      URL url = new URL(apiServer+(apiServer.indexOf("?") >= 0 ? "&" : "?")+
                           "latlng="+Double.toString(latitude)+","+Double.toString(longitude)+"&"+
-                          "language="+language+"&"+
-                          "key="+apiKey);
+                          ((language != null) && (language.length() > 0) ? "language="+URLEncoder.encode(language, "UTF-8") : ""));
       HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection(); 
       httpURLConnection.setConnectTimeout(60000);
       httpURLConnection.setReadTimeout(60000);      
@@ -191,6 +195,24 @@ public class ALGeocoder {
     
     return address;
     
+  }
+  
+  public static Address getFromLocation (double latitude, 
+                                         double longitude, 
+                                         String language, 
+                                         String apiKey, 
+                                         StringBuilder apiStatus) {
+    try {
+      return getFromLocation ("https://maps.googleapis.com/maps/api/geocode/json?key="+URLEncoder.encode(apiKey, "UTF-8"),
+                              latitude, 
+                              longitude, 
+                              language, 
+                              apiStatus);
+    }
+    catch (Throwable e){ 
+      Log.e("ALGeocoder", "getFromLocation - Exception", e); 
+      return null;
+    }  
   }
 
 }
