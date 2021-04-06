@@ -2,23 +2,17 @@ unit ALCommon;
 
 interface
 
-uses {$IFDEF IOS}
-     iOSapi.Foundation,
-     {$ENDIF}
-     {$IFDEF MSWINDOWS}
-     Winapi.Windows,
-     {$ENDIF}
-     system.sysutils,
-     system.types;
+uses
+  {$IFDEF IOS}
+  iOSapi.Foundation,
+  {$ENDIF}
+  {$IFDEF MSWINDOWS}
+  Winapi.Windows,
+  {$ENDIF}
+  system.sysutils,
+  system.types;
 
-{$IF CompilerVersion < 29} {Delphi XE8}
-  {$IF defined(CPUX64)} // The CPU supports the x86-64 instruction set, and is in a 64-bit environment. *New* in XE2/x64
-    {$DEFINE CPU64BITS} // The CPU is in a 64-bit environment, such as DCC64.EXE. *New* in XE8
-  {$ENDIF}
-  {$IF defined(CPUX86)} // 	The CPU supports the x86-64 instruction set, and is in a 64-bit environment. *New* in XE2/x64
-    {$DEFINE CPU32BITS} // The CPU is in a 32-bit environment, such as DCC32.EXE. *New* in XE8
-  {$ENDIF}
-{$ENDIF}
+{$I Alcinoe.inc}
 
 {$IF CompilerVersion <= 25} // xe4
 type
@@ -33,7 +27,7 @@ type
   TALPointDType = array [0..1] of Double;
 
   {~~~~~~~~~~~~~~~~~~~~~~~~}
-  {$IF CompilerVersion > 33} // rio
+  {$IF CompilerVersion > 34} // sydney
     {$MESSAGE WARN 'Check if System.Types.TPointf still having the same implementation and adjust the IFDEF'}
   {$IFEND}
   PALPointD = ^TALPointD;
@@ -104,7 +98,7 @@ type
   end;
 
   {~~~~~~~~~~~~~~~~~~~~~~~~}
-  {$IF CompilerVersion > 33} // rio
+  {$IF CompilerVersion > 34} // sydney
     {$MESSAGE WARN 'Check if System.Types.TSizef still having the same implementation and adjust the IFDEF'}
   {$IFEND}
   PALSizeD = ^TALSizeD;
@@ -141,7 +135,7 @@ type
   end;
 
   {~~~~~~~~~~~~~~~~~~~~~~~~}
-  {$IF CompilerVersion > 33} // rio
+  {$IF CompilerVersion > 34} // sydney
     {$MESSAGE WARN 'Check if System.Types.TRectf still having the same implementation and adjust the IFDEF'}
   {$IFEND}
   PALRectD = ^TALRectD;
@@ -155,9 +149,9 @@ type
     procedure SetSize(const Value: TALSizeD);
     function GetLocation: TALPointD;
   public
-    constructor Create(const Origin: TALPointD); overload;                               // empty rect at given origin
+    constructor Create(const Origin: TALPointD); overload;                              // empty rect at given origin
     constructor Create(const Origin: TALPointD; const Width, Height: Double); overload; // at TPoint of origin with width and height
-    constructor Create(const Left, Top, Right, Bottom: Double); overload;              // at x, y with width and height
+    constructor Create(const Left, Top, Right, Bottom: Double); overload;               // at Left, Top, Right, and Bottom
     constructor Create(const P1, P2: TALPointD; Normalize: Boolean = False); overload;  // with corners specified by p1 and p2
     constructor Create(const R: TALRectD; Normalize: Boolean = False); overload;
     constructor Create(const R: TRect; Normalize: Boolean = False); overload;
@@ -284,7 +278,7 @@ type
   end;
 
 {~~~~~~~~~~~~~~~~~~~~~~~~}
-{$IF CompilerVersion > 33} // rio
+{$IF CompilerVersion > 34} // sydney
   {$MESSAGE WARN 'Check if functions below implemented in System.Types still having the same implementation and adjust the IFDEF'}
 {$IFEND}
 function ALRectWidth(const Rect: TRect): Integer; inline; overload;
@@ -319,35 +313,34 @@ function ALRectPlaceInto(const R: TRectf;
 
 type
 
-  {$IFNDEF NEXTGEN}
+  {$IFNDEF ALHideAnsiString}
   EALException = class(Exception)
   public
     constructor Create(const Msg: AnsiString);
     constructor CreateFmt(const Msg: ansistring; const Args: array of const);
   end;
-  {$ENDIF}
+  {$ENDIF !ALHideAnsiString}
   EALExceptionU = class(Exception);
 
 {~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
 var ALCallStackCustomLogsMaxCount: integer = 50;
 procedure ALAddCallStackCustomLogU(Const aLog: String);
-function ALGetCallStackCustomLogsU(Const aAppendTimeStamp: boolean = True): String;
+function ALGetCallStackCustomLogsU(Const aPrependTimeStamp: boolean = True; Const aPrependThreadID: boolean = True): String;
 
 {~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
 Type TalLogType = (VERBOSE, DEBUG, INFO, WARN, ERROR, ASSERT);
 procedure ALLog(Const Tag: String; Const msg: String; const _type: TalLogType = TalLogType.INFO);
+Var ALEnqueueLog: Boolean; // We can use this flag to enqueue the log when the device just started and when we didn't yet
+procedure ALPrintLogQueue; // pluged the device to the monitoring tool, so that we can print the log a little later
 
 {~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
 type TALCustomDelayedFreeObjectProc = procedure(var aObject: Tobject) of object;
 var ALCustomDelayedFreeObjectProc: TALCustomDelayedFreeObjectProc;
-{$IFDEF DEBUG}
-var ALFreeAndNilRefCountWarn: boolean;
-threadvar ALCurThreadFreeAndNilNORefCountWarn: boolean;
-type TALFreeAndNilCanRefCountWarnProc = function(const aObject: Tobject): boolean of object;
-var ALFreeAndNilCanRefCountWarnProc: TALFreeAndNilCanRefCountWarnProc;
+{$IF CompilerVersion >= 34} // sydney
+Procedure ALFreeAndNil(const [ref] Obj: TObject; const ADelayed: boolean = false); inline;
+{$ELSE}
+Procedure ALFreeAndNil(var Obj; const ADelayed: boolean = false); inline;
 {$ENDIF}
-Procedure ALFreeAndNil(var Obj; const adelayed: boolean = false); overload; {$IFNDEF DEBUG}inline;{$ENDIF}
-Procedure ALFreeAndNil(var Obj; const adelayed: boolean; const aRefCountWarn: Boolean); overload; {$IFNDEF DEBUG}inline;{$ENDIF}
 
 {~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
 Function AlBoolToInt(Value:Boolean):Integer;
@@ -361,13 +354,13 @@ function  ALIfThen(AValue: Boolean; const ATrue: UInt64; const AFalse: UInt64 = 
 function  ALIfThen(AValue: Boolean; const ATrue: Single; const AFalse: Single = 0): Single; overload; inline;
 function  ALIfThen(AValue: Boolean; const ATrue: Double; const AFalse: Double = 0): Double; overload; inline;
 function  ALIfThen(AValue: Boolean; const ATrue: Extended; const AFalse: Extended = 0): Extended; overload; inline;
-{$IFNDEF NEXTGEN}
+{$IFNDEF ALHideAnsiString}
 function  ALIfThen(AValue: Boolean; const ATrue: AnsiString; AFalse: AnsiString = ''): AnsiString; overload; inline;
-{$ENDIF}
+{$ENDIF !ALHideAnsiString}
 function  ALIfThenU(AValue: Boolean; const ATrue: String; AFalse: String = ''): String; overload; inline;
 
 {$IFDEF MSWINDOWS}
-{$IF CompilerVersion > 33} // rio
+{$IF CompilerVersion > 34} // sydney
   {$MESSAGE WARN 'Check if EnumDynamicTimeZoneInformation/SystemTimeToTzSpecificLocalTimeEx/TzSpecificLocalTimeToSystemTimeEx are still not declared in Winapi.Windows and adjust the IFDEF'}
 {$ENDIF}
 {$WARNINGS OFF}
@@ -377,7 +370,7 @@ function TzSpecificLocalTimeToSystemTimeEx(lpTimeZoneInformation: PDynamicTimeZo
 {$WARNINGS ON}
 Function ALGetDynamicTimeZoneInformations: Tarray<TDynamicTimeZoneInformation>;
 Function ALGetDynamicTimeZoneInformation(const aTimeZoneKeyName: String): TDynamicTimeZoneInformation;
-{$ENDIF}
+{$ENDIF MSWINDOWS}
 function AlLocalDateTimeToUTC(Const aLocalDateTime: TDateTime): TdateTime; overload;
 function AlUTCDateTimeToLocal(Const aUTCDateTime: TDateTime): TdateTime; overload;
 {$IFDEF MSWINDOWS}
@@ -395,96 +388,53 @@ function ALDateTimeToUnixMs(const aValue: TDateTime): Int64;
 Function ALInc(var x: integer; Count: integer): Integer;
 var ALMove: procedure (const Source; var Dest; Count: NativeInt);
 
-{~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
-const ALMAXUInt64: UInt64 = 18446744073709551615;
-      ALMAXInt64: Int64 = 9223372036854775807;
-      ALMAXUInt: cardinal = 4294967295;
-      ALMAXInt: int32 = 2147483647;
-      ALNullDate = 0; // There are no TDateTime values from –1 through 0
-                      // dt := -0.5;
-                      // writeln(formatFloat('0.0', dt));                    => -0.5
-                      // writeln(DateTimeToStr(dt));                         => 1899/12/30 12:00:00.000
-                      //
-                      // dt := encodedatetime(1899,12,30,12,00,00,000);
-                      // writeln(formatFloat('0.0', dt));                    => 0.5
-                      // writeln(DateTimeToStr(dt));                         => 1899/12/30 12:00:00.000
-                      //
-                      // also -0.5 have the advantage to be in the form
-                      // m*2^e (-1*2^-1) with mean we don't need to use
-                      // samevalue to compare
-                      // https://stackoverflow.com/questions/41779801/single-double-and-precision
-                      //
-                      // but finally -0.5 have a big drawback, if you convert it to string and back
-                      // to datetime then you will obtain 0.5 ! same if you convert it to unix and
-                      // back to datetime :( so i decide that 0 if more suitable than -0.5
+{~~~}
+const
 
-{$IFNDEF NEXTGEN}
-
-//
-// Taken from https://github.com/synopse/mORMot.git
-// https://synopse.info
-// http://mormot.net
-//
-
-{$IF CompilerVersion > 34} // sydney
-  {$MESSAGE WARN 'Check if https://github.com/synopse/mORMot.git SynCommons.pas was not updated from references\mORMot\SynCommons.pas and adjust the IFDEF'}
-{$ENDIF}
-
-type
-  /// the potential features, retrieved from an Intel CPU
-  // - see https://en.wikipedia.org/wiki/CPUID#EAX.3D1:_Processor_Info_and_Feature_Bits
-  // - is defined on all platforms, since an ARM desktop could browse Intel logs
-  TALIntelCpuFeature =
-   ( { CPUID 1 in EDX }
-   cfFPU, cfVME, cfDE, cfPSE, cfTSC, cfMSR, cfPAE, cfMCE,
-   cfCX8, cfAPIC, cf_d10, cfSEP, cfMTRR, cfPGE, cfMCA, cfCMOV,
-   cfPAT, cfPSE36, cfPSN, cfCLFSH, cf_d20, cfDS, cfACPI, cfMMX,
-   cfFXSR, cfSSE, cfSSE2, cfSS, cfHTT, cfTM, cfIA64, cfPBE,
-   { CPUID 1 in ECX }
-   cfSSE3, cfCLMUL, cfDS64, cfMON, cfDSCPL, cfVMX, cfSMX, cfEST,
-   cfTM2, cfSSSE3, cfCID, cfSDBG, cfFMA, cfCX16, cfXTPR, cfPDCM,
-   cf_c16, cfPCID, cfDCA, cfSSE41, cfSSE42, cfX2A, cfMOVBE, cfPOPCNT,
-   cfTSC2, cfAESNI, cfXS, cfOSXS, cfAVX, cfF16C, cfRAND, cfHYP,
-   { extended features CPUID 7 in EBX, ECX, DL }
-   cfFSGS, cf_b01, cfSGX, cfBMI1, cfHLE, cfAVX2, cf_b06, cfSMEP,
-   cfBMI2, cfERMS, cfINVPCID, cfRTM, cfPQM, cf_b13, cfMPX, cfPQE,
-   cfAVX512F, cfAVX512DQ, cfRDSEED, cfADX, cfSMAP, cfAVX512IFMA, cfPCOMMIT, cfCLFLUSH,
-   cfCLWB, cfIPT, cfAVX512PF, cfAVX512ER, cfAVX512CD, cfSHA, cfAVX512BW, cfAVX512VL,
-   cfPREFW1, cfAVX512VBMI, cfUMIP, cfPKU, cfOSPKE, cf_c05, cfAVX512VBMI2, cf_c07,
-   cfGFNI, cfVAES, cfVCLMUL, cfAVX512NNI, cfAVX512BITALG, cf_c13, cfAVX512VPC, cf_c15,
-   cf_cc16, cf_c17, cf_c18, cf_c19, cf_c20, cf_c21, cfRDPID, cf_c23,
-   cf_c24, cf_c25, cf_c26, cf_c27, cf_c28, cf_c29, cfSGXLC, cf_c31,
-   cf_d0, cf_d1, cfAVX512NNIW, cfAVX512MAS, cf_d4, cf_d5, cf_d6, cf_d7);
-
-  /// all features, as retrieved from an Intel CPU
-  TALIntelCpuFeatures = set of TALIntelCpuFeature;
-
-var
-  /// the available CPU features, as recognized at program startup
-  ALCpuFeatures: TALIntelCpuFeatures;
-
-procedure ALInitCpuFeatures;
-
-{$ENDIF}
+  ALMAXUInt64: UInt64 = 18446744073709551615;
+  ALMAXInt64: Int64 = 9223372036854775807;
+  ALMAXUInt: cardinal = 4294967295;
+  ALMAXInt: int32 = 2147483647;
+  ALNullDate = 0; // There are no TDateTime values from –1 through 0
+                  // dt := -0.5;
+                  // writeln(formatFloat('0.0', dt));                    => -0.5
+                  // writeln(DateTimeToStr(dt));                         => 1899/12/30 12:00:00.000
+                  //
+                  // dt := encodedatetime(1899,12,30,12,00,00,000);
+                  // writeln(formatFloat('0.0', dt));                    => 0.5
+                  // writeln(DateTimeToStr(dt));                         => 1899/12/30 12:00:00.000
+                  //
+                  // also -0.5 have the advantage to be in the form
+                  // m*2^e (-1*2^-1) with mean we don't need to use
+                  // samevalue to compare
+                  // https://stackoverflow.com/questions/41779801/single-double-and-precision
+                  //
+                  // but finally -0.5 have a big drawback, if you convert it to string and back
+                  // to datetime then you will obtain 0.5 ! same if you convert it to unix and
+                  // back to datetime :( so i decide that 0 if more suitable than -0.5
 
 implementation
 
-uses system.Classes,
-     system.math,
-     system.generics.collections,
-     {$IF defined(ANDROID)}
-     Androidapi.JNI.JavaTypes,
-     Androidapi.Helpers,
-     ALAndroidApi,
-     {$ENDIF}
-     {$IF defined(IOS)}
-     Macapi.Helpers,
-     {$ENDIF}
-     system.DateUtils,
-     ALString;
+uses
+  system.Classes,
+  system.math,
+  system.generics.collections,
+  {$IF defined(ANDROID)}
+  Androidapi.JNI.JavaTypes,
+  Androidapi.Helpers,
+  ALAndroidApi,
+  {$ENDIF}
+  {$IF defined(IOS)}
+  Macapi.Helpers,
+  {$ENDIF}
+  system.DateUtils,
+  ALString;
 
 type
+
+  {******************************}
   _TALCallStackCustomLogU = record
+    ThreadID: TThreadID;
     TimeStamp: TDateTime;
     log: String;
   end;
@@ -492,6 +442,29 @@ type
 var
   _ALCallStackCustomLogsU: TList<_TALCallStackCustomLogU>;
   _ALCallStackCustomLogsUCurrentIndex: integer = -1;
+
+type
+
+  {***********************}
+  _TALLogQueueItem = record
+  private
+    Tag: String;
+    msg: String;
+    _type: TalLogType;
+  public
+    class function Create(const ATag: String; const AMsg: String; Const aType: TalLogType): _TALLogQueueItem; static; inline;
+  end;
+
+var
+  _ALLogQueue: TList<_TALLogQueueItem>;
+
+{************************************************************************************************************************}
+class function _TALLogQueueItem.Create(const ATag: String; const AMsg: String; Const aType: TalLogType): _TALLogQueueItem;
+begin
+  Result.Tag := aTag;
+  Result.Msg := aMsg;
+  Result._Type := aType;
+end;
 
 {***********************************************}
 function ALRectWidth(const Rect: TRect): Integer;
@@ -1653,7 +1626,7 @@ begin
   Result.cy := Size.cy;
 end;
 
-{$IFNDEF NEXTGEN}
+{$IFNDEF ALHideAnsiString}
 
 {*****************************************************}
 constructor EALException.Create(const Msg: AnsiString);
@@ -1667,12 +1640,13 @@ begin
   inherited CreateFmt(String(Msg), Args);
 end;
 
-{$ENDIF !NEXTGEN}
+{$ENDIF !ALHideAnsiString}
 
 {*****************************************************}
 procedure ALAddCallStackCustomLogU(Const aLog: String);
 var LCallStackCustomLogU: _TALCallStackCustomLogU;
 begin
+  LCallStackCustomLogU.ThreadID := TThread.Current.ThreadID;
   LCallStackCustomLogU.TimeStamp := Now;
   LCallStackCustomLogU.log := aLog;
   Tmonitor.enter(_ALCallStackCustomLogsU);
@@ -1687,69 +1661,119 @@ begin
   End;
 end;
 
-{*********************************************************************************}
-function ALGetCallStackCustomLogsU(Const aAppendTimeStamp: boolean = True): String;
+{**************************************************************************************************************************}
+function ALGetCallStackCustomLogsU(Const aPrependTimeStamp: boolean = True; Const aPrependThreadID: boolean = True): String;
 Var i: integer;
 begin
   Result := '';
-  if aAppendTimeStamp then begin
-    for i := _ALCallStackCustomLogsUCurrentIndex downto 0 do
-      Result := Result + ALFormatDateTimeU('yyyy''-''mm''-''dd''T''hh'':''nn'':''ss''.''zzz''Z''', TTimeZone.Local.ToUniversalTime(_ALCallStackCustomLogsU[i].TimeStamp), ALDefaultFormatSettingsU) + ': ' + _ALCallStackCustomLogsU[i].log + #13#10;
-    for i := _ALCallStackCustomLogsU.Count - 1 downto _ALCallStackCustomLogsUCurrentIndex + 1 do
-      Result := Result + ALFormatDateTimeU('yyyy''-''mm''-''dd''T''hh'':''nn'':''ss''.''zzz''Z''', TTimeZone.Local.ToUniversalTime(_ALCallStackCustomLogsU[i].TimeStamp), ALDefaultFormatSettingsU) + ': ' + _ALCallStackCustomLogsU[i].log + #13#10;
-  end
-  else begin
-    for i := _ALCallStackCustomLogsUCurrentIndex downto 0 do
-      Result := Result + _ALCallStackCustomLogsU[i].log + #13#10;
-    for i := _ALCallStackCustomLogsU.Count - 1 downto _ALCallStackCustomLogsUCurrentIndex + 1 do
-      Result := Result + _ALCallStackCustomLogsU[i].log + #13#10;
-  end;
+  Tmonitor.enter(_ALCallStackCustomLogsU);
+  Try
+    if aPrependTimeStamp and aPrependThreadID then begin
+      for i := _ALCallStackCustomLogsUCurrentIndex downto 0 do
+        Result := Result + ALFormatDateTimeU('yyyy''-''mm''-''dd''T''hh'':''nn'':''ss''.''zzz''Z''', TTimeZone.Local.ToUniversalTime(_ALCallStackCustomLogsU[i].TimeStamp), ALDefaultFormatSettingsU) + ' [' + ALIntToStrU(_ALCallStackCustomLogsU[i].ThreadID) + ']: ' + _ALCallStackCustomLogsU[i].log + #13#10;
+      for i := _ALCallStackCustomLogsU.Count - 1 downto _ALCallStackCustomLogsUCurrentIndex + 1 do
+        Result := Result + ALFormatDateTimeU('yyyy''-''mm''-''dd''T''hh'':''nn'':''ss''.''zzz''Z''', TTimeZone.Local.ToUniversalTime(_ALCallStackCustomLogsU[i].TimeStamp), ALDefaultFormatSettingsU) + ' [' + ALIntToStrU(_ALCallStackCustomLogsU[i].ThreadID) + ']: ' + _ALCallStackCustomLogsU[i].log + #13#10;
+    end
+    else if aPrependTimeStamp then begin
+      for i := _ALCallStackCustomLogsUCurrentIndex downto 0 do
+        Result := Result + ALFormatDateTimeU('yyyy''-''mm''-''dd''T''hh'':''nn'':''ss''.''zzz''Z''', TTimeZone.Local.ToUniversalTime(_ALCallStackCustomLogsU[i].TimeStamp), ALDefaultFormatSettingsU) + ': ' + _ALCallStackCustomLogsU[i].log + #13#10;
+      for i := _ALCallStackCustomLogsU.Count - 1 downto _ALCallStackCustomLogsUCurrentIndex + 1 do
+        Result := Result + ALFormatDateTimeU('yyyy''-''mm''-''dd''T''hh'':''nn'':''ss''.''zzz''Z''', TTimeZone.Local.ToUniversalTime(_ALCallStackCustomLogsU[i].TimeStamp), ALDefaultFormatSettingsU) + ': ' + _ALCallStackCustomLogsU[i].log + #13#10;
+    end
+    else if aPrependThreadID then begin
+      for i := _ALCallStackCustomLogsUCurrentIndex downto 0 do
+        Result := Result + '[' + ALIntToStrU(_ALCallStackCustomLogsU[i].ThreadID) + ']: ' + _ALCallStackCustomLogsU[i].log + #13#10;
+      for i := _ALCallStackCustomLogsU.Count - 1 downto _ALCallStackCustomLogsUCurrentIndex + 1 do
+        Result := Result + '[' + ALIntToStrU(_ALCallStackCustomLogsU[i].ThreadID) + ']: ' + _ALCallStackCustomLogsU[i].log + #13#10;
+    end
+    else begin
+      for i := _ALCallStackCustomLogsUCurrentIndex downto 0 do
+        Result := Result + _ALCallStackCustomLogsU[i].log + #13#10;
+      for i := _ALCallStackCustomLogsU.Count - 1 downto _ALCallStackCustomLogsUCurrentIndex + 1 do
+        Result := Result + _ALCallStackCustomLogsU[i].log + #13#10;
+    end;
+  Finally
+    Tmonitor.exit(_ALCallStackCustomLogsU);
+  End;
   Result := ALTrimU(Result);
 end;
 
 {***********************************************************************************************}
 procedure ALLog(Const Tag: String; Const msg: String; const _type: TalLogType = TalLogType.INFO);
 {$IF defined(IOS) or defined(MSWINDOWS)}
-var aMsg: String;
+var LMsg: String;
 {$ENDIF}
 begin
-  {$IF defined(ANDROID)}
-  case _type of
-    TalLogType.VERBOSE: TJLog.JavaClass.v(StringToJString(Tag), StringToJString(msg));
-    TalLogType.DEBUG: TJLog.JavaClass.d(StringToJString(Tag), StringToJString(msg));
-    TalLogType.INFO: TJLog.JavaClass.i(StringToJString(Tag), StringToJString(msg));
-    TalLogType.WARN: TJLog.JavaClass.w(StringToJString(Tag), StringToJString(msg));
-    TalLogType.ERROR: TJLog.JavaClass.e(StringToJString(Tag), StringToJString(msg));
-    TalLogType.ASSERT: TJLog.JavaClass.wtf(StringToJString(Tag), StringToJString(msg)); // << wtf for What a Terrible Failure but everyone know that it's for what the fuck !
-  end;
-  {$ELSEIF defined(IOS)}
-  // https://forums.developer.apple.com/thread/4685
-  //if _type <> TalLogType.VERBOSE  then begin // because log on ios slow down the app so skip verbosity
-    if msg <> '' then aMsg := ' => ' + msg
-    else aMsg := '';
-    case _type of
-      TalLogType.VERBOSE: NSLog(StringToID('[V] ' + Tag + aMsg));
-      TalLogType.DEBUG:   NSLog(StringToID('[D][V] ' + Tag + aMsg));
-      TalLogType.INFO:    NSLog(StringToID('[I][D][V] ' + Tag + aMsg));
-      TalLogType.WARN:    NSLog(StringToID('[W][I][D][V] ' + Tag + aMsg));
-      TalLogType.ERROR:   NSLog(StringToID('[E][W][I][D][V] ' + Tag + aMsg));
-      TalLogType.ASSERT:  NSLog(StringToID('[A][E][W][I][D][V] ' + Tag + aMsg));
+  if ALEnqueueLog then begin
+    Tmonitor.Enter(_ALLogQueue);
+    try
+      _ALLogQueue.Add(
+        _TALLogQueueItem.Create(
+          Tag, // const ATag: String;
+          Msg, // const AMsg: String;
+          _Type)); // Const aType: TalLogType
+    finally
+      Tmonitor.Exit(_ALLogQueue);
     end;
-  //end;
-  {$ELSEIF defined(MSWINDOWS)}
-  if _type <> TalLogType.VERBOSE  then begin // because log on windows slow down the app so skip verbosity
-    if msg <> '' then aMsg := ' => ' + stringReplace(msg, '%', '%%', [rfReplaceALL]) // https://quality.embarcadero.com/browse/RSP-15942
-    else aMsg := '';
+  end
+  else begin
+    {$IF defined(ANDROID)}
     case _type of
-      TalLogType.VERBOSE: OutputDebugString(pointer('[V] ' + Tag + aMsg + ' |'));
-      TalLogType.DEBUG:   OutputDebugString(pointer('[D][V] ' + Tag + aMsg + ' |'));
-      TalLogType.INFO:    OutputDebugString(pointer('[I][D][V] ' + Tag + aMsg + ' |'));
-      TalLogType.WARN:    OutputDebugString(pointer('[W][I][D][V] ' + Tag + aMsg + ' |'));
-      TalLogType.ERROR:   OutputDebugString(pointer('[E][W][I][D][V] ' + Tag + aMsg + ' |'));
-      TalLogType.ASSERT:  OutputDebugString(pointer('[A][E][W][I][D][V] ' + Tag + aMsg + ' |'));
+      TalLogType.VERBOSE: TJLog.JavaClass.v(StringToJString(Tag), StringToJString(msg));
+      TalLogType.DEBUG: TJLog.JavaClass.d(StringToJString(Tag), StringToJString(msg));
+      TalLogType.INFO: TJLog.JavaClass.i(StringToJString(Tag), StringToJString(msg));
+      TalLogType.WARN: TJLog.JavaClass.w(StringToJString(Tag), StringToJString(msg));
+      TalLogType.ERROR: TJLog.JavaClass.e(StringToJString(Tag), StringToJString(msg));
+      TalLogType.ASSERT: TJLog.JavaClass.wtf(StringToJString(Tag), StringToJString(msg)); // << wtf for What a Terrible Failure but everyone know that it's for what the fuck !
     end;
+    {$ELSEIF defined(IOS)}
+    // https://forums.developer.apple.com/thread/4685
+    //if _type <> TalLogType.VERBOSE  then begin // because log on ios slow down the app so skip verbosity
+      if msg <> '' then LMsg := ' => ' + msg
+      else LMsg := '';
+      case _type of
+        TalLogType.VERBOSE: NSLog(StringToID('[V] ' + Tag + LMsg));
+        TalLogType.DEBUG:   NSLog(StringToID('[D][V] ' + Tag + LMsg));
+        TalLogType.INFO:    NSLog(StringToID('[I][D][V] ' + Tag + LMsg));
+        TalLogType.WARN:    NSLog(StringToID('[W][I][D][V] ' + Tag + LMsg));
+        TalLogType.ERROR:   NSLog(StringToID('[E][W][I][D][V] ' + Tag + LMsg));
+        TalLogType.ASSERT:  NSLog(StringToID('[A][E][W][I][D][V] ' + Tag + LMsg));
+      end;
+    //end;
+    {$ELSEIF defined(MSWINDOWS)}
+    if _type <> TalLogType.VERBOSE  then begin // because log on windows slow down the app so skip verbosity
+      if msg <> '' then LMsg := ' => ' + stringReplace(msg, '%', '%%', [rfReplaceALL]) // https://quality.embarcadero.com/browse/RSP-15942
+      else LMsg := '';
+      case _type of
+        TalLogType.VERBOSE: OutputDebugString(pointer('[V] ' + Tag + LMsg + ' |'));
+        TalLogType.DEBUG:   OutputDebugString(pointer('[D][V] ' + Tag + LMsg + ' |'));
+        TalLogType.INFO:    OutputDebugString(pointer('[I][D][V] ' + Tag + LMsg + ' |'));
+        TalLogType.WARN:    OutputDebugString(pointer('[W][I][D][V] ' + Tag + LMsg + ' |'));
+        TalLogType.ERROR:   OutputDebugString(pointer('[E][W][I][D][V] ' + Tag + LMsg + ' |'));
+        TalLogType.ASSERT:  OutputDebugString(pointer('[A][E][W][I][D][V] ' + Tag + LMsg + ' |'));
+      end;
+    end;
+    {$IFEND}
   end;
-  {$IFEND}
+end;
+
+{************************}
+procedure ALPrintLogQueue;
+var LOldEnqueueLogValue: Boolean;
+    i: integer;
+begin
+  LOldEnqueueLogValue := ALEnqueueLog;
+  ALEnqueueLog := False;
+  Tmonitor.Enter(_ALLogQueue);
+  try
+    for I := 0 to _ALLogQueue.Count - 1 do
+      with _ALLogQueue[i] do
+        ALLog(Tag, Msg, _type);
+    _ALLogQueue.Clear;
+  finally
+    Tmonitor.Exit(_ALLogQueue);
+    ALEnqueueLog := LOldEnqueueLogValue;
+  end;
 end;
 
 {******************************************}
@@ -1771,7 +1795,7 @@ Begin
   result := (LTotal - (LBorder*2) - LObject) div 2 + LBorder;
 End;
 
-{$IFNDEF NEXTGEN}
+{$IFNDEF ALHideAnsiString}
 
 {***********************************************************************************************}
 function ALIfThen(AValue: Boolean; const ATrue: AnsiString; AFalse: AnsiString = ''): AnsiString;
@@ -1782,7 +1806,7 @@ begin
     Result := AFalse;
 end;
 
-{$ENDIF !NEXTGEN}
+{$ENDIF !ALHideAnsiString}
 
 {************************************************************************************}
 function ALIfThenU(AValue: Boolean; const ATrue: String; AFalse: String = ''): String;
@@ -2064,7 +2088,7 @@ begin
   result := X;
 end;
 
-{*******************************************************}
+{******************************************************}
 {Accepts number of milliseconds in the parameter aValue,
  provides 1000 times more precise value of TDateTime}
 function ALUnixMsToDateTime(const aValue: Int64): TDateTime;
@@ -2082,19 +2106,31 @@ begin
   if aValue < UnixDateDelta then result := -result;
 end;
 
-{***************************************************************}
-Procedure ALFreeAndNil(var Obj; const adelayed: boolean = false);
+{***********************************}
+{$IF CompilerVersion >= 34} // sydney
+Procedure ALFreeAndNil(const [ref] Obj: TObject; const ADelayed: boolean = false);
+{$ELSE}
+Procedure ALFreeAndNil(var Obj; const ADelayed: boolean = false);
+{$ENDIF}
 var Temp: TObject;
 begin
+  {$IF CompilerVersion >= 34} // sydney
+  Temp := Obj;
+  if Temp = nil then exit;
+  TObject(Pointer(@Obj)^) := nil;
+  {$ELSE}
   Temp := TObject(Obj);
-  if temp = nil then exit;
+  if Temp = nil then exit;
   TObject(Obj) := nil;
+  {$ENDIF}
   if adelayed and assigned(ALCustomDelayedFreeObjectProc) then ALCustomDelayedFreeObjectProc(Temp)
   else begin
     {$IF defined(AUTOREFCOUNT)}
+    //AUTOREFCOUNT was removed in 10.4 (sydney) so the
+    //code below is for version < than 10.4
     if AtomicCmpExchange(temp.refcount{Target}, 0{NewValue}, 0{Compareand}) = 1 then begin // it's seam it's not an atomic operation (http://stackoverflow.com/questions/39987850/is-reading-writing-an-integer-4-bytes-atomic-on-ios-android-like-on-win32-win6)
-      temp.Free;
-      temp := nil;
+      Temp.Free;
+      Temp := nil;
     end
     else begin
       Temp.DisposeOf; // TComponent Free Notification mechanism notifies registered components that particular
@@ -2105,207 +2141,26 @@ begin
                       // Free Notification mechanism is being triggered in TComponent destructor and without DisposeOf
                       // and direct execution of destructor, two components could hold strong references to each
                       // other keeping themselves alive during whole application lifetime.
-      {$IF defined(DEBUG)}
-      if ALFreeAndNilRefCountWarn and
-        (not ALCurThreadFreeAndNilNORefCountWarn) and
-        ((not assigned(ALFreeAndNilCanRefCountWarnProc)) or
-         (ALFreeAndNilCanRefCountWarnProc(Temp))) then begin
-        if (Temp.RefCount - 1) and (not $40000000{Temp.objDisposedFlag}) <> 0 then
-          ALLog('ALFreeAndNil', Temp.ClassName + ' | Refcount is not null (' + Inttostr((Temp.RefCount - 1) and (not $40000000{Temp.objDisposedFlag})) + ')', TalLogType.warn);
-      end;
-      {$ENDIF}
-      temp := nil;
+      Temp := nil;
     end;
     {$ELSE}
-    temp.Free;
-    temp := nil;
-    {$IFEND}
+    Temp.Free;
+    Temp := nil;
+    {$ENDIF}
   end;
 end;
 
-{*************************************************************************************}
-Procedure ALFreeAndNil(var Obj; const adelayed: boolean; const aRefCountWarn: Boolean);
-{$IFDEF DEBUG}
-var aOldCurThreadFreeAndNilNoRefCountWarn: boolean;
-{$ENDIF}
-begin
-  {$IFDEF DEBUG}
-  aOldCurThreadFreeAndNilNoRefCountWarn := ALCurThreadFreeAndNilNORefCountWarn;
-  ALCurThreadFreeAndNilNORefCountWarn := not aRefCountWarn;
-  try
-  {$ENDIF}
-
-    ALFreeAndNil(Obj, adelayed);
-
-  {$IFDEF DEBUG}
-  finally
-    ALCurThreadFreeAndNilNORefCountWarn := aOldCurThreadFreeAndNilNORefCountWarn;
-  end;
-  {$ENDIF}
-end;
-
-{$IFNDEF NEXTGEN}
-
-//
-// Taken from https://github.com/synopse/mORMot.git
-// https://synopse.info
-// http://mormot.net
-//
-
-{$IF CompilerVersion > 34} // sydney
-  {$MESSAGE WARN 'Check if https://github.com/synopse/mORMot.git SynCommons.pas was not updated from references\mORMot\SynCommons.pas and adjust the IFDEF'}
-{$ENDIF}
-
-{**}
-type
-  TRegisters = record
-    eax,ebx,ecx,edx: cardinal;
-  end;
-
-{*************************************************************}
-procedure GetCPUID(Param: Cardinal; var Registers: TRegisters);
-{$IF defined(CPU64BITS)}
-asm .noframe // ecx=param, rdx=Registers (Linux: edi,rsi)
-        mov     eax, Param
-        mov     r9, Registers
-        mov     r10, rbx // preserve rbx
-        xor     ebx, ebx
-        xor     ecx, ecx
-        xor     edx, edx
-        cpuid
-        mov     TRegisters(r9).&eax, eax
-        mov     TRegisters(r9).&ebx, ebx
-        mov     TRegisters(r9).&ecx, ecx
-        mov     TRegisters(r9).&edx, edx
-        mov     rbx, r10
-end;
-{$else}
-asm
-        push    esi
-        push    edi
-        mov     esi, edx
-        mov     edi, eax
-        pushfd
-        pop     eax
-        mov     edx, eax
-        xor     eax, $200000
-        push    eax
-        popfd
-        pushfd
-        pop     eax
-        xor     eax, edx
-        jz      @nocpuid
-        push    ebx
-        mov     eax, edi
-        xor     ecx, ecx
-        cpuid
-        mov     TRegisters(esi).&eax, eax
-        mov     TRegisters(esi).&ebx, ebx
-        mov     TRegisters(esi).&ecx, ecx
-        mov     TRegisters(esi).&edx, edx
-        pop     ebx
-@nocpuid:
-        pop     edi
-        pop     esi
-end;
-{$endif}
-
-{******************************************************}
-function crc32cBy4SSE42(crc, value: cardinal): cardinal;
-{$IF defined(CPU64BITS)}
-asm .noframe
-        mov     eax, crc
-        crc32   eax, value
-end;
-{$else}
-asm // eax=crc, edx=value
-        {$ifdef UNICODE}
-        crc32   eax, edx
-        {$else}
-        db      $F2, $0F, $38, $F1, $C2
-        {$endif}
-end;
-{$endif}
-
-{**************************}
-function RdRand32: cardinal;
-{$IF defined(CPU64BITS)}
-asm .noframe
-{$else}
-asm
-{$endif}
-  // rdrand eax: same opcodes for x86 and x64
-  db $0f, $c7, $f0
-  // returns in eax, ignore carry flag (eax=0 won't hurt)
-end;
-
-{*********************************************}
-function IsXmmYmmOSEnabled: boolean; assembler;
-asm // see https://software.intel.com/en-us/blogs/2011/04/14/is-avx-enabled
-        xor     ecx, ecx  // specify control register XCR0 = XFEATURE_ENABLED_MASK
-        db  $0f, $01, $d0 // XGETBV reads XCR0 into EDX:EAX
-        and     eax, 6    // check OS has enabled both XMM (bit 1) and YMM (bit 2)
-        cmp     al, 6
-        sete    al
-end;
-
-{**************************}
-procedure ALInitCpuFeatures;
-var regs: TRegisters;
-    c: cardinal;
-begin
-  {$R-} // this code require range check error OFF
-  // retrieve CPUID raw flags
-  regs.edx := 0;
-  regs.ecx := 0;
-  GetCPUID(1,regs);
-  PIntegerArray(@ALCpuFeatures)^[0] := regs.edx;
-  PIntegerArray(@ALCpuFeatures)^[1] := regs.ecx;
-  GetCPUID(7,regs);
-  PIntegerArray(@ALCpuFeatures)^[2] := regs.ebx;
-  PIntegerArray(@ALCpuFeatures)^[3] := regs.ecx;
-  PByte(@PIntegerArray(@ALCpuFeatures)^[4])^ := regs.edx;
-  if not(cfOSXS in ALCpuFeatures) or not IsXmmYmmOSEnabled then
-    ALCpuFeatures := ALCpuFeatures-[cfAVX,cfAVX2,cfFMA];
-  // validate accuracy of most used HW opcodes
-  if cfRAND in ALCpuFeatures then
-    try
-      c := RdRand32;
-      if RdRand32=c then // most probably a RDRAND bug, e.g. on AMD Rizen 3000
-        exclude(ALCpuFeatures,cfRAND);
-    except // may trigger an illegal instruction exception on some Ivy Bridge
-      exclude(ALCpuFeatures,cfRAND);
-    end;
-  if cfSSE42 in ALCpuFeatures then
-    try
-      if crc32cBy4SSE42(0,1)<>3712330424 then
-        raise EALException.Create('Invalid crc32cBy4SSE42');
-    except // disable now on illegal instruction or incorrect result
-      exclude(ALCpuFeatures,cfSSE42);
-    end;
-  {$R+} // enable back the {$R+}
-end;
-
-{$ENDIF}
 
 initialization
-
-  {$IFNDEF NEXTGEN}
-  ALInitCpuFeatures;
-  {$ENDIF}
-
   ALCustomDelayedFreeObjectProc := nil;
-  {$IFDEF DEBUG}
-  ALFreeAndNilRefCountWarn := False;
-  ALFreeAndNilCanRefCountWarnProc := nil;
-  {$ENDIF}
-
+  ALEnqueueLog := False;
+  _ALLogQueue := TList<_TALLogQueueItem>.Create;
   _ALCallStackCustomLogsU := TList<_TALCallStackCustomLogU>.Create;
   ALMove := system.Move;
 
 
 Finalization
-
   ALFreeAndNil(_ALCallStackCustomLogsU);
+  ALFreeAndNil(_ALLogQueue);
 
 end.

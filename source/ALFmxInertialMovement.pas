@@ -1,15 +1,6 @@
 unit ALFmxInertialMovement;
 
-//
-//unfortunatly because emb decide to forbid access to private member via class helper
-//https://quality.embarcadero.com/browse/RSP-15273
-//i couldn't update the Tanicalculation and was forced to fully copy/past the entire unit :(
-//i rename Tanicalculation in TALAnicalculation to not made any confusion
-//UPDATE: this was originally, with the time i discover many problems/bug with original Tanicalculations
-//and i update significantly this unit
-//
-
-{$IF CompilerVersion > 33} // rio
+{$IF CompilerVersion > 34} // sydney
   {$MESSAGE WARN 'Check if FMX.InertialMovement.pas was not updated and adjust the IFDEF'}
 {$ENDIF}
 
@@ -17,26 +8,27 @@ interface
 
 {$SCOPEDENUMS ON}
 
-uses System.Types,
-     System.UITypes,
-     System.Classes,
-     System.Generics.Collections,
-     System.Messaging,
-     System.TypInfo,
-     {$IFDEF DEBUG}
-     system.diagnostics,
-     {$ENDIF}
-     {$IFDEF IOS}
-     Macapi.ObjectiveC,
-     iOSapi.Foundation,
-     iOSapi.QuartzCore,
-     {$ENDIF}
-     {$IFDEF ANDROID}
-     Androidapi.JNIBridge,
-     ALAndroidApi,
-     {$ENDIF}
-     FMX.Types,
-     ALCommon;
+uses
+  System.Types,
+  System.UITypes,
+  System.Classes,
+  System.Generics.Collections,
+  System.Messaging,
+  System.TypInfo,
+  {$IFDEF DEBUG}
+  system.diagnostics,
+  {$ENDIF}
+  {$IFDEF IOS}
+  Macapi.ObjectiveC,
+  iOSapi.Foundation,
+  iOSapi.QuartzCore,
+  {$ENDIF}
+  {$IFDEF ANDROID}
+  Androidapi.JNIBridge,
+  ALAndroidApi,
+  {$ENDIF}
+  FMX.Types,
+  ALCommon;
 
 type
 
@@ -100,7 +92,7 @@ type
     fDisplayLink: CADisplayLink;
     fDisplayLinkListener: TDisplayLinkListener;
 
-  {$ELSEIF defined(ANDROID) and (CompilerVersion >= 32)} // tokyo
+  {$ELSEIF defined(ANDROID)}
 
   private type
     TChoreographerFrameCallback = class(TJavaLocal, JChoreographer_FrameCallback)
@@ -122,7 +114,7 @@ type
 
   {$ENDIF}
   private
-    fMouseEventReceived: boolean;
+    fmouseEventConsumed: Integer;
     FTimerActive: Boolean;
     FVelocityFactor: Double;
     FEnabled: Boolean;
@@ -146,7 +138,6 @@ type
     FCancelTargetX: Boolean;
     FCancelTargetY: Boolean;
     FOnStart: TNotifyEvent;
-    FOnTimer: TNotifyEvent;
     FOnChanged: TNotifyEvent;
     FOnStop: TNotifyEvent;
     FDown: Boolean;
@@ -279,26 +270,23 @@ type
     property Opacity: Single read GetOpacity;
     property InTimerProc: Boolean read FInTimerProc;
     Procedure WakeUpTimer;
-    Procedure Calculate; // when Ontimer is set (an event that just need to call repaint/invalidate), then in the onpaint of the control we must manually call Calculate
-                         // this because of this problem: https://stackoverflow.com/questions/46146006/why-calling-setneedsdisplay-from-a-nstimer-make-cadisplaylink-stop-to-work-corre
-                         // i do also like this because between the time to receive the ontimer event, then we calculate new position and then we call repaint AND the time we
-                         // will actually repaint the form they could be a delay. so in this way callling calculate from the onpaint and we are sure we have the most accurate
-                         // position to draw. NOTE: If onTimer is not set, no need to call calculate because it's will be call automatically on each timerproc
+    // In the onpaint of the control we can manually call Calculate to have most
+    // accurate position, this because between the time we receive the ontimer
+    // event AND the time we will actually repaint the form they could be a delay.
+    // so in this way callling calculate from the onpaint and we are sure we have
+    // the most accurate position to draw. However I m not sure that this is not
+    // simply useless because visually I didn't see any diference
+    Procedure Calculate;
     property Moved: Boolean read FMoved;
     property LowVelocity: Boolean read GetLowVelocity;
     procedure BeginUpdate;
     procedure EndUpdate;
     property UpdateCount: Integer read FUpdateCount;
     property OnStart: TNotifyEvent read FOnStart write FOnStart;
-    property OnTimer: TNotifyEvent read FOnTimer write FOnTimer; // in this event, you just need to call repaint (on the related control).
-                                                                 // then later in the onpaint of the related control you will need to call Calculate
-                                                                 // this because of this problem: https://stackoverflow.com/questions/46146006/why-calling-setneedsdisplay-from-a-nstimer-make-cadisplaylink-stop-to-work-corre
-                                                                 // i do also like this because between the time to receive the ontimer event, then we calculate new position and then we call repaint AND the time we
-                                                                 // will actually repaint the form they could be a delay. so in this way callling calculate from the onpaint and we are sure we have the most accurate
     property OnChanged: TNotifyEvent read FOnChanged write FOnChanged;
     property OnStop: TNotifyEvent read FOnStop write FOnStop;
     property DeadZone: Integer read FDeadZone write FDeadZone default ALDefaultDeadZone;
-    property mouseEventReceived: boolean read fmouseEventReceived; // used only internally
+    property mouseEventConsumed: Integer read fmouseEventConsumed write fmouseEventConsumed; // used only internally
     property TimerActive: boolean read FTimerActive;
   published
     property Interval: Word read FInterval write SetInterval default ALDefaultIntervalOfAni;
@@ -314,24 +302,25 @@ var
 
 implementation
 
-uses System.SysUtils,
-     System.Math,
-     System.RTLConsts,
-     System.Math.Vectors,
-     {$IFDEF DEBUG}
-     AlString,
-     {$ENDIF}
-     {$IFDEF ANDROID}
-     Androidapi.AppGlue,
-     Androidapi.Looper,
-     Fmx.platform.Android,
-     {$ENDIF}
-     {$IFDEF IOS}
-     Macapi.CoreFoundation,
-     Macapi.ObjCRuntime,
-     {$ENDIF}
-     FMX.Consts,
-     FMX.Platform;
+uses
+  System.SysUtils,
+  System.Math,
+  System.RTLConsts,
+  System.Math.Vectors,
+  {$IFDEF DEBUG}
+  AlString,
+  {$ENDIF}
+  {$IFDEF ANDROID}
+  Androidapi.AppGlue,
+  Androidapi.Looper,
+  Fmx.platform.Android,
+  {$ENDIF}
+  {$IFDEF IOS}
+  Macapi.CoreFoundation,
+  Macapi.ObjCRuntime,
+  {$ENDIF}
+  FMX.Consts,
+  FMX.Platform;
 
 const
   ALEpsilonPoint = TEpsilon.Position;
@@ -361,10 +350,7 @@ end;
 {*******************************************************************}
 procedure TALAniCalculations.TDisplayLinkListener.displayLinkUpdated;
 begin
-  if assigned(fAniCalculations.fOnTimer) then
-    fAniCalculations.fOnTimer(fAniCalculations)
-  else
-    fAniCalculations.Calculate;
+  fAniCalculations.Calculate;
 end;
 
 {*****************************************************************************}
@@ -375,7 +361,7 @@ end;
 
 {$ENDIF}
 
-{$IF defined(ANDROID) and (CompilerVersion >= 32)} // tokyo
+{$IF defined(ANDROID)}
 
 {************************************************************************************************************}
 constructor TALAniCalculations.TChoreographerFrameCallback.Create(const aAniCalculations: TALAniCalculations);
@@ -390,12 +376,7 @@ begin
   {$IFDEF DEBUG}
   //ALLog('TALAniCalculations.TChoreographerFrameCallback.doFrame', 'ThreadID: ' + alIntToStrU(TThread.Current.ThreadID) + '/' + alIntToStrU(MainThreadID), TalLogType.verbose);
   {$ENDIF}
-
-  if assigned(fAniCalculations.fOnTimer) then
-    fAniCalculations.fOnTimer(fAniCalculations)
-  else
-    fAniCalculations.Calculate;
-
+  fAniCalculations.Calculate;
   if fAniCalculations.FTimerActive then
     fAniCalculations.fChoreographer.postFrameCallback(self);
 end;
@@ -413,14 +394,14 @@ begin
   fDisplayLink.retain;
   fDisplayLink.addToRunLoop(TNSRunLoop.Wrap(TNSRunLoop.OCClass.currentRunLoop), NSRunLoopCommonModes); // I don't really know with is the best, NSDefaultRunLoopMode or NSRunLoopCommonModes
   fDisplayLink.setPaused(true);
-  {$ELSEIF defined(ANDROID) and (CompilerVersion >= 32)} // tokyo
+  {$ELSEIF defined(ANDROID)}
   fChoreographer := TJChoreographer.JavaClass.getInstance;
   fChoreographerFrameCallback := TChoreographerFrameCallback.create(self);
   {$ELSE}
   FTimerHandle := TFmxHandle(-1);
   {$ENDIF}
   FTimerActive := False;
-  fMouseEventReceived := False;
+  fmouseEventConsumed := 0;
   BeginUpdate;
   FPointTime := TList<TPointTime>.Create;
   if not TPlatformServices.Current.SupportsPlatformService(IFMXTimerService, FPlatformTimer) then
@@ -438,7 +419,7 @@ begin
                            // invalidate is thread safe meaning that it can be called from a thread separate to the one in which the display link is running.
   fDisplayLink.release;
   AlFreeAndNil(fDisplayLinkListener);
-  {$ELSEIF defined(ANDROID) and (CompilerVersion >= 32)} // tokyo
+  {$ELSEIF defined(ANDROID)}
   alFreeAndNil(fChoreographerFrameCallback);
   {$ENDIF}
   ALFreeAndNil(FPointTime);
@@ -722,13 +703,13 @@ end;
 procedure TALAniCalculations.SetViewportPosition(const Value: TALPointD);
 var
   LChanged: Boolean;
-  OldViewportPosition: TALPointD;
+  LOldViewportPosition: TALPointD;
   LTarget: TTarget;
 begin
-  OldViewportPosition := FViewportPosition;
+  LOldViewportPosition := FViewportPosition;
   FViewportPosition := Value;
   UpdateViewportPositionByBounds;
-  LChanged := FViewportPosition <> OldViewportPosition;
+  LChanged := FViewportPosition <> LOldViewportPosition;
   if LChanged and (not FInTimerProc) then
   begin
     LTarget.TargetType := TTargetType.Achieved;
@@ -793,7 +774,7 @@ begin
 
   {$IFDEF IOS}
   fDisplayLink.setPaused(False);
-  {$ELSEIF defined(ANDROID) and (CompilerVersion >= 32)} // tokyo
+  {$ELSEIF defined(ANDROID)}
   fChoreographer.postFrameCallback(fChoreographerFrameCallback);
   {$ELSE}
   if FTimerHandle = TFmxHandle(-1) then
@@ -817,7 +798,7 @@ begin
 
   {$IFDEF IOS}
   fDisplayLink.setPaused(True);
-  {$ELSEIF defined(ANDROID) and (CompilerVersion >= 32)} // tokyo
+  {$ELSEIF defined(ANDROID)}
   fChoreographer.removeFrameCallback(fChoreographerFrameCallback);
   {$ELSE}
   if FTimerHandle <> TFmxHandle(-1) then
@@ -1006,8 +987,7 @@ end;
 {$IF not defined(IOS)}
 procedure TALAniCalculations.TimerProc;
 begin
-  if assigned(fOnTimer) then fOnTimer(self) // << this must simply call repaint and in the paint event we must call Calculate
-  else calculate;
+  calculate;
 end;
 {$ENDIF}
 
@@ -1024,8 +1004,7 @@ begin
     {$IFDEF DEBUG}
     ALLog('TALAniCalculations.WakeUpTimer', 'ThreadID: ' + alIntToStrU(TThread.Current.ThreadID) + '/' + alIntToStrU(MainThreadID), TalLogType.warn);
     {$ENDIF}
-    if assigned(fOnTimer) then fOnTimer(self)
-    else Calculate;
+    Calculate;
   end;
 end;
 
@@ -1061,32 +1040,39 @@ begin
     {$IFDEF ANDROID}
 
     //
-    // this is handled in the unit FMX.Platform.UI.Android by adding this
+    // this is handled in the unit FMX.Platform.UI.Android by adding this in TFormRender.Render
     //
-    //   procedure TWindowManager.Render;
-    //     ...
-    //     for i := ALAniCalcTimerProcs.Count - 1 downto 0 do
-    //       if (ALAniCalcTimerProcs[i].Down) and
-    //          (not ALAniCalcTimerProcs[i].mouseEventReceived) then exit;
-    //     ...
+    // for var i := ALAniCalcTimerProcs.Count - 1 downto 0 do begin
+    //   var LAniCalcTimerProc := ALAniCalcTimerProcs[i];
+    //   if LAniCalcTimerProc.Down then begin
+    //     if LAniCalcTimerProc.mouseEventConsumed > 0 then exit;
+    //     LAniCalcTimerProc.mouseEventConsumed := 1;
+    //     Break;
+    //   end;
+    // end;
     //
 
     {$ENDIF}
     {$IFDEF IOS}
 
     //
-    // this is handled in the unit FMX.Platform.iOS by adding this
+    // this is handled in the unit FMX.Platform.iOS by adding this in TFMXGLKView3D/TFMXMTKView3D.drawRect
     //
-    //   procedure TFMXView3D.drawRect(R: CGRect);
-    //     ...
-    //     for i := ALAniCalcTimerProcs.Count - 1 downto 0 do
-    //       if (ALAniCalcTimerProcs[i].Down) and
-    //          (not ALAniCalcTimerProcs[i].mouseEventReceived) then exit;
-    //     ...
+    // for var i := ALAniCalcTimerProcs.Count - 1 downto 0 do begin
+    //   var LAniCalcTimerProc := ALAniCalcTimerProcs[i];
+    //   if LAniCalcTimerProc.Down then begin
+    //     if LAniCalcTimerProc.mouseEventConsumed > 0 then begin
+    //       LAniCalcTimerProc.mouseEventConsumed := -1;
+    //       exit;
+    //     end
+    //     else if LAniCalcTimerProc.mouseEventConsumed = 0 then
+    //       LAniCalcTimerProc.mouseEventConsumed := 1;
+    //     Break;
+    //   end;
+    // end;
     //
 
     {$ENDIF}
-    fMouseEventReceived := False;
 
     FlastTickCalc := FPlatformTimer.getTick;
     T := FlastTickCalc/SecsPerDay;
@@ -1511,7 +1497,7 @@ var
   T: TDateTime;
 begin
   T := FPlatformTimer.getTick/SecsPerDay;
-  if (FLastTimeChanged = 0) or ((T - FLastTimeChanged) * SecsPerDay >= ALEpsilonTime) then
+  if (FLastTimeChanged = 0) or (Abs(T - FLastTimeChanged) * SecsPerDay >= ALEpsilonTime) then
   begin
     try
       DoChanged;
@@ -1705,7 +1691,7 @@ end;
 {***************************************************}
 procedure TALAniCalculations.MouseDown(X, Y: Double);
 begin
-  fMouseEventReceived := True;
+  fmouseEventConsumed := 0;
   if Down then
     Exit;
   Down := True;
@@ -1731,7 +1717,7 @@ begin
   //ALLog('TALAniCalculations.MouseMove', 'x: '  + ALFormatFloatU('0', x, alDefaultFormatSettingsU) +
   //                                      ' - y: '  + ALFormatFloatU('0', y, alDefaultFormatSettingsU), TalLogType.verbose);
   {$ENDIF}
-  fMouseEventReceived := True;
+  fmouseEventConsumed := 0;
   if Down and ([ttVertical, ttHorizontal] * TouchTracking <> []) then
   begin
     if not FMoved then
@@ -1784,7 +1770,7 @@ end;
 {*************************************************}
 procedure TALAniCalculations.MouseUp(X, Y: Double);
 begin
-  fMouseEventReceived := True;
+  fmouseEventConsumed := 0;
   if Down then
   begin
     MouseMove(X, Y);
@@ -1803,7 +1789,7 @@ procedure TALAniCalculations.MouseLeave;
 var
   PointTime: TPointTime;
 begin
-  fMouseEventReceived := True;
+  fmouseEventConsumed := 0;
   if Down then
   begin
     if PositionCount > 0 then
@@ -1828,7 +1814,7 @@ var
   DX, DY: Double;
   NewTarget: TTarget;
 begin
-  fMouseEventReceived := True;
+  fmouseEventConsumed := 0;
   DX := RoundTo(X, ALEpsilonRange);
   DY := RoundTo(Y, ALEpsilonRange);
   if (DX <> 0) or (DY <> 0) then
