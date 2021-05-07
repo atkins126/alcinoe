@@ -1211,6 +1211,8 @@ begin
     if PortNumber = 0 then begin
       if ALSameText(SchemeName, 'http') then PortNumber := 80
       else if ALSameText(SchemeName, 'https') then PortNumber := 443
+      else if ALSameText(SchemeName, 'ws') then PortNumber := 80
+      else if ALSameText(SchemeName, 'wss') then PortNumber := 443
       else if ALSameText(SchemeName, 'ftp') then PortNumber := 21
       else result := False;
     end;
@@ -1969,10 +1971,10 @@ begin
   FOnDownloadProgress := nil;
   FOnRedirect := nil;
   FProxyParams := TALHTTPClientProxyParams.Create;
+  FProxyParams.OnChange := OnProxyParamsChange;
   FRequestHeader := TALHTTPRequestHeader.Create;
   FRequestHeader.UserAgent := 'Mozilla/3.0 (compatible; TALHTTPClient)';
   FProtocolVersion := HTTPpv_1_1;
-  FProxyParams.OnChange := OnProxyParamsChange;
 end;
 
 {*******************************}
@@ -1989,16 +1991,16 @@ begin
   FUserName := NameValue;
 end;
 
-{*****************************************************************************}
-procedure TALHTTPClient.SetOnRedirect(const Value: TAlHTTPClientRedirectEvent);
-begin
-  FOnRedirect := Value;
-end;
-
 {*******************************************************************}
 procedure TALHTTPClient.SetPassword(const PasswordValue: AnsiString);
 begin
   FPassword := PasswordValue;
+end;
+
+{*****************************************************************************}
+procedure TALHTTPClient.SetOnRedirect(const Value: TAlHTTPClientRedirectEvent);
+begin
+  FOnRedirect := Value;
 end;
 
 {************************************************}
